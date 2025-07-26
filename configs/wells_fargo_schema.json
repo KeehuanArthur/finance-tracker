@@ -1,0 +1,22 @@
+{
+  "bank_name": "wells_fargo",
+  "schema_mappings": [
+    {
+      "format_name": "wells_fargo_standard",
+      "column_mappings": {
+        "date": "transaction_date",
+        "debit_amount": "debit_amount",
+        "credit_amount": "credit_amount",
+        "category": "category_type",
+        "description": "merchant"
+      },
+      "amount_handling": {
+        "type": "split_columns",
+        "debit_column": "debit_amount",
+        "credit_column": "credit_amount",
+        "sign_convention": "positive_for_credits"
+      },
+      "date_format": "%Y-%m-%d"
+    }
+  ]
+}

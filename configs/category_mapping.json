@@ -1,0 +1,14 @@
+{
+  "dining": ["restaurant", "restaurants", "food", "dining", "cafe", "fast food", "takeout"],
+  "groceries": ["grocery", "groceries", "supermarket", "market", "food store"],
+  "transportation": ["gas", "fuel", "uber", "lyft", "taxi", "bus", "train", "parking"],
+  "shopping": ["amazon", "walmart", "target", "store", "retail", "purchase"],
+  "entertainment": ["netflix", "spotify", "hulu", "movies", "games", "subscription"],
+  "income": ["salary", "paycheck", "deposit", "income", "wages", "bonus"],
+  "housing": ["rent", "mortgage", "property", "home", "apartment"],
+  "utilities": ["electric", "water", "internet", "phone", "cable", "utilities"],
+  "healthcare": ["medical", "doctor", "pharmacy", "hospital", "health", "dental"],
+  "insurance": ["insurance", "coverage", "policy", "premium"],
+  "fees": ["atm", "fee", "charge", "penalty", "service fee"],
+  "transfer": ["transfer", "payment", "wire", "check", "deposit"]
+}

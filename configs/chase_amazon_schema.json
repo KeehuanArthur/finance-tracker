@@ -1,0 +1,23 @@
+{
+  "bank_name": "chase_amazon",
+  "schema_mappings": [
+    {
+      "format_name": "chase_amazon_standard",
+      "column_mappings": {
+        "date": "Transaction Date",
+        "amount": "Amount",
+        "category": "Category",
+        "description": "Description",
+        "type": "Type",
+        "post_date": "Post Date",
+        "memo": "Memo"
+      },
+      "amount_handling": {
+        "type": "single_column",
+        "column": "Amount",
+        "sign_convention": "negative_for_debits"
+      },
+      "date_format": "%m/%d/%Y"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "bank_name": "apple_card",
+  "schema_mappings": [
+    {
+      "format_name": "apple_card_standard",
+      "column_mappings": {
+        "date": "Transaction Date",
+        "amount": "Amount (USD)",
+        "category": "Category",
+        "description": "Description",
+        "merchant": "Merchant",
+        "type": "Type",
+        "clearing_date": "Clearing Date",
+        "purchased_by": "Purchased By"
+      },
+      "amount_handling": {
+        "type": "single_column",
+        "column": "Amount (USD)",
+        "sign_convention": "positive_for_purchases_negative_for_payments"
+      },
+      "date_format": "%m/%d/%Y"
+    }
+  ]
+}

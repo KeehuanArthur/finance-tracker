@@ -1,0 +1,42 @@
+[project]
+name = "finance-tracker"
+version = "0.1.0"
+description = "A Python application for analyzing bank statement CSV files with category normalization and visualization"
+authors = [
+    {name = "Finance Tracker", email = "finance-tracker@example.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "streamlit>=1.28.0",
+    "pandas>=2.1.0",
+    "numpy>=1.24.3",
+    "plotly>=5.17.0",
+    "python-dateutil>=2.8.2",
+    "watchdog"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
