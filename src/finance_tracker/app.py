@@ -6,12 +6,13 @@ from datetime import datetime, timedelta
 import os
 from finance_tracker.bank_reader import BankStatementReader
 from finance_tracker.category_normalizer import CategoryNormalizer
+from finance_tracker.notes_manager import NotesManager
 
 st.set_page_config(page_title="Finance Tracker", layout="wide")
 
-@st.cache_data
 def load_data(data_folder, filter_payments=True):
     """Load and process bank statement data."""
+    
     reader = BankStatementReader(data_folder, filter_payments=filter_payments)
     normalizer = CategoryNormalizer()
     
@@ -19,13 +20,17 @@ def load_data(data_folder, filter_payments=True):
     combined_data = reader.get_combined_data()
     
     if combined_data.empty:
-        return pd.DataFrame(), normalizer, reader
+        return pd.DataFrame(), normalizer, reader, None
     
     # Normalize categories if category column exists
     if 'category' in combined_data.columns:
         combined_data = normalizer.normalize_dataframe(combined_data)
     
-    return combined_data, normalizer, reader
+    # Initialize notes manager and add notes to data
+    notes_manager = NotesManager(notes_file=os.path.join(data_folder, "notes_database.json"))
+    combined_data = notes_manager.add_notes_to_dataframe(combined_data)
+    
+    return combined_data, normalizer, reader, notes_manager
 
 def main():
     st.title("🏦 Finance Tracker")
@@ -48,7 +53,7 @@ def main():
     )
     
     # Load data
-    data, normalizer, reader = load_data(data_folder, filter_payments)
+    data, normalizer, reader, notes_manager = load_data(data_folder, filter_payments)
     
     if data.empty:
         st.warning("No data found in the specified folder!")
@@ -277,8 +282,8 @@ def main():
     # Data table
     st.header("📋 Transaction Data")
     
-    # Display options - use available columns
-    available_columns = [col for col in [date_col, amount_col, category_col, description_col, 'bank', 'source_file']
+    # Display options - use available columns (including notes)
+    available_columns = [col for col in [date_col, amount_col, category_col, description_col, 'bank', 'source_file', 'notes']
                         if col in filtered_data.columns]
     
     show_columns = st.multiselect(
@@ -304,26 +309,181 @@ def main():
             ) == "Ascending"
         
         # Create a copy of the data for sorting and display
-        display_data = filtered_data[show_columns].copy()
+        # Always include transaction_id for notes functionality, even if not displayed
+        columns_to_include = show_columns.copy()
+        if 'transaction_id' not in columns_to_include and 'transaction_id' in filtered_data.columns:
+            columns_to_include.append('transaction_id')
+        
+        display_data = filtered_data[columns_to_include].copy()
         
         # Sort the data based on user selection
         display_data = display_data.sort_values(sort_column, ascending=sort_ascending)
         
-        # Configure column formatting for proper display and sorting
+        # Configure column formatting for proper display and editing
         column_config = {}
         if amount_col in show_columns and amount_col in display_data.columns:
             column_config[amount_col] = st.column_config.NumberColumn(
                 amount_col,
                 format="$%.2f",
-                help="Transaction amount"
+                help="Transaction amount",
+                disabled=True  # Don't allow editing amounts
             )
         
-        # Use st.dataframe with column configuration to maintain numeric sorting
-        st.dataframe(
-            display_data,
-            use_container_width=True,
-            column_config=column_config
-        )
+        # Configure notes column as editable if present
+        if 'notes' in show_columns and 'notes' in display_data.columns:
+            column_config['notes'] = st.column_config.TextColumn(
+                'notes',
+                help="Click to add or edit notes for this transaction",
+                max_chars=500,
+                width="medium"
+            )
+        
+        # Make other columns non-editable except notes
+        for col in show_columns:
+            if col not in column_config and col != 'notes':
+                if col == date_col:
+                    column_config[col] = st.column_config.DatetimeColumn(
+                        col,
+                        disabled=True
+                    )
+                else:
+                    column_config[col] = st.column_config.TextColumn(
+                        col,
+                        disabled=True
+                    )
+        
+        # Use st.data_editor for editable notes
+        if notes_manager is not None:
+            # Hide transaction_id column from display but keep it in data
+            if 'transaction_id' in display_data.columns and 'transaction_id' not in show_columns:
+                column_config['transaction_id'] = None  # This hides the column
+            
+            edited_data = st.data_editor(
+                display_data,
+                use_container_width=True,
+                column_config=column_config,
+                hide_index=True,
+                key="transaction_editor"
+            )
+            
+            # Check if notes were edited and save them
+            if 'notes' in edited_data.columns and 'transaction_id' in edited_data.columns:
+                # Use session state to track if we need to save
+                if 'last_edited_data' not in st.session_state:
+                    st.session_state.last_edited_data = display_data.copy()
+                
+                # Compare with the last known state
+                notes_changed = False
+                changes_made = []
+                
+                # Check each row for changes
+                for idx in edited_data.index:
+                    if idx in st.session_state.last_edited_data.index:
+                        old_note = str(st.session_state.last_edited_data.loc[idx, 'notes']) if 'notes' in st.session_state.last_edited_data.columns else ""
+                        new_note = str(edited_data.loc[idx, 'notes']) if not pd.isna(edited_data.loc[idx, 'notes']) else ""
+                        
+                        # Clean up the notes (remove 'nan' strings)
+                        if old_note == 'nan':
+                            old_note = ""
+                        if new_note == 'nan':
+                            new_note = ""
+                        
+                        if old_note != new_note:
+                            transaction_id = str(edited_data.loc[idx, 'transaction_id'])
+                            success = notes_manager.set_note(transaction_id, new_note)
+                            if success:
+                                notes_changed = True
+                                changes_made.append(f"Updated note for transaction {transaction_id[:8]}...")
+                                # Update session state
+                                st.session_state.last_edited_data.loc[idx, 'notes'] = new_note
+                
+                if notes_changed:
+                    st.success(f"✅ Notes saved successfully! ({len(changes_made)} changes)")
+                    # Clear the cache to force data reload
+                    if hasattr(st, 'cache_data'):
+                        st.cache_data.clear()
+            
+            # Add manual save button and debug info
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                if st.button("💾 Manual Save", help="Force save all current notes"):
+                    saved_count = 0
+                    for idx in edited_data.index:
+                        if 'notes' in edited_data.columns and 'transaction_id' in edited_data.columns:
+                            note = str(edited_data.loc[idx, 'notes']) if not pd.isna(edited_data.loc[idx, 'notes']) else ""
+                            if note and note != 'nan':
+                                transaction_id = str(edited_data.loc[idx, 'transaction_id'])
+                                if notes_manager.set_note(transaction_id, note):
+                                    saved_count += 1
+                    st.success(f"✅ Manually saved {saved_count} notes!")
+            
+            with col2:
+                if st.button("🔄 Refresh Data", help="Reload data from database"):
+                    if 'last_edited_data' in st.session_state:
+                        del st.session_state.last_edited_data
+                    st.rerun()
+            
+            with col3:
+                # Show debug info
+                if st.button("🔍 Debug Info"):
+                    st.write("**Debug Information:**")
+                    st.write(f"- Notes in edited data: {edited_data['notes'].notna().sum() if 'notes' in edited_data.columns else 0}")
+                    st.write(f"- Transaction IDs present: {'transaction_id' in edited_data.columns}")
+                    st.write(f"- Session state has last_edited_data: {'last_edited_data' in st.session_state}")
+        else:
+            # Fallback to regular dataframe if notes manager is not available
+            st.dataframe(
+                display_data,
+                use_container_width=True,
+                column_config=column_config
+            )
+    
+    # Notes Statistics
+    if notes_manager is not None:
+        st.header("📝 Notes Statistics")
+        
+        notes_stats = notes_manager.get_statistics()
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Total Notes", notes_stats['total_notes'])
+        
+        with col2:
+            st.metric("Total Characters", f"{notes_stats['total_characters']:,}")
+        
+        with col3:
+            avg_length = notes_stats['average_note_length']
+            st.metric("Avg Note Length", f"{avg_length:.1f} chars")
+        
+        with col4:
+            if notes_stats['last_updated']:
+                last_updated = datetime.fromisoformat(notes_stats['last_updated'].replace('Z', '+00:00'))
+                st.metric("Last Updated", last_updated.strftime("%m/%d/%Y"))
+        
+        # Notes management tools
+        if notes_stats['total_notes'] > 0:
+            st.subheader("Notes Management")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("🔍 Search Notes", help="Search through all notes"):
+                    search_term = st.text_input("Search for:", key="notes_search")
+                    if search_term:
+                        matching_notes = notes_manager.search_notes(search_term)
+                        if matching_notes:
+                            st.write(f"Found {len(matching_notes)} notes containing '{search_term}':")
+                            for transaction_id, note in matching_notes.items():
+                                st.write(f"**{transaction_id[:8]}...**: {note[:100]}{'...' if len(note) > 100 else ''}")
+                        else:
+                            st.info("No notes found containing that search term.")
+            
+            with col2:
+                if st.button("💾 Backup Notes", help="Create a backup of all notes"):
+                    backup_path = f"./data/notes_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                    if notes_manager.backup_notes(backup_path):
+                        st.success(f"✅ Notes backed up to: {backup_path}")
+                    else:
+                        st.error("❌ Failed to create backup")
     
     # Category mapping management
     if 'normalized_category' in data.columns:
