@@ -13,9 +13,18 @@ A Python application for analyzing bank statement CSV files with category normal
 
 ## Setup
 
-1. Install dependencies:
+1. Set up Environment and install dependencies:
 ```bash
+# Install UV if not exist
+pip install uv
+# Or you can install UV using brew
+brew install uv
+
+# Install python packages
 uv sync
+
+# Activate environment
+source .venv/bin/activate
 ```
 
 2. Create your data folder structure:
