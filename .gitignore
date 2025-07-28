@@ -1,4 +1,6 @@
 .venv
-data/*
+data/*/
+data/notes_database.json
 *.pyc
 *.egg-info
+.DS_Store
